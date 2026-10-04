@@ -102,6 +102,45 @@ barplot(go_classification)
 # Save the plot
 ggsave("GO_Classification.png", width = 10, height = 8)
 
+# Load ggplot2
+library(ggplot2)
+# BP,CC,MF IN A PLOT FOR GO
+# Convert GO classification results into a data frame
+cc_df <- as.data.frame(go_cc)
+
+# Plot Cellular Component classification
+ggplot(cc_df, aes(x = reorder(Description, Count), y = Count)) +
+    geom_col(fill = "steelblue") +
+    coord_flip() +
+    labs(
+        title = "GO Classification (Cellular Component)",
+        x = NULL,
+        y = "Count"
+    ) +
+    theme_minimal() +
+    theme(
+        plot.title = element_text(hjust = 0.5, face = "bold")
+    )
+
+
+#CC ALONE BAR GRAPH IN RECORD
+
+# Convert GO classification results into a data frame
+cc_df <- as.data.frame(go_cc)
+
+# Plot Cellular Component classification
+ggplot(cc_df, aes(x = reorder(Description, Count), y = Count)) +
+    geom_col(fill = "steelblue") +
+    coord_flip() +
+    labs(
+        title = "GO Classification (Cellular Component)",
+        x = NULL,
+        y = "Count"
+    ) +
+    theme_minimal() +
+    theme(
+        plot.title = element_text(hjust = 0.5, face = "bold")
+    )
 
 
 # STEP 5: GO OVER-REPRESENTATION ANALYSIS (ORA)
