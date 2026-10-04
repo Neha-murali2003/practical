@@ -1,0 +1,25 @@
+# Install and load ggplot2
+install.packages("ggplot2")
+library(ggplot2)
+
+# Import dataset
+data <- read.csv("weight_height.csv")
+
+# View the dataset
+head(data)
+
+# Create scatter plot
+ggplot(data, aes(x = Weight, y = Height, color = Gender)) +
+  geom_point(size = 3) +
+  geom_smooth(method = "lm", se = TRUE) +
+  labs(
+    title = "Relationship Between Weight and Height by Gender",
+    x = "Weight (kg)",
+    y = "Height (cm)",
+    color = "Gender"
+  ) +
+  theme_minimal()
+
+# Save the plot
+ggsave("Weight_Height_Scatterplot.png",
+       width = 8, height = 6, dpi = 300)
