@@ -1,234 +1,313 @@
-# with-genelist
-############################################################
-# EXPERIMENT: ORA AND GSEA USING KEGG AND REACTOME
-############################################################
+```r
+# ============================================================
+# EXPERIMENT: GO CLASSIFICATION, ENRICHMENT AND PATHWAY ANALYSIS
+# ============================================================
 
 
-############################################################
-# STEP 1: INSTALL AND LOAD REQUIRED PACKAGES
-############################################################
+# STEP 1: INSTALLATION OF REQUIRED PACKAGES
 
-# Install packages if they are not already installed
-
+# Install BiocManager if not already installed
 if (!requireNamespace("BiocManager", quietly = TRUE))
   install.packages("BiocManager")
 
-packages <- c(
+# Install required Bioconductor packages
+BiocManager::install(c(
   "clusterProfiler",
-  "ReactomePA",
-  "DOSE",
-  "enrichplot",
   "org.Hs.eg.db",
-  "ggplot2"
-)
+  "enrichplot",
+  "ReactomePA"
+), ask = FALSE, update = FALSE)
 
-for (pkg in packages) {
-  if (!requireNamespace(pkg, quietly = TRUE)) {
-    BiocManager::install(pkg, ask = FALSE, update = FALSE)
-  }
-}
+# Install required CRAN packages
+install.packages(c("ggplot2", "ggridges"))
 
-# Load libraries
-
+# Load all required packages
 library(clusterProfiler)
-library(ReactomePA)
-library(DOSE)
-library(enrichplot)
 library(org.Hs.eg.db)
+library(enrichplot)
+library(ReactomePA)
 library(ggplot2)
+library(ggridges)
 
 
-############################################################
-# STEP 2: LOAD THE INPUT CSV FILE
-############################################################
+# STEP 2: IMPORT THE CSV FILE
 
-# Select the CSV file containing gene symbols and logFC
+# Select the gene list CSV file
+data <- read.csv(file.choose())
 
-df <- read.csv(file.choose())
-
-# Display the first few rows
-
-head(df)
+# View the first few rows
+head(data)
 
 # Check column names
+colnames(data)
 
-colnames(df)
-
-# Check dimensions
-
-dim(df)
+# Check dataset dimensions
+dim(data)
 
 
-############################################################
-# STEP 3: DATA PREPROCESSING
-############################################################
+# STEP 3: PREPROCESSING AND ID CONVERSION
 
-# Remove missing values
+# Remove rows containing missing values
+data <- na.omit(data)
 
-df <- na.omit(df)
-
-# Ensure correct data types
-
-df$gene_symbol <- as.character(df$gene_symbol)
-df$logFC <- as.numeric(df$logFC)
-
-# Remove duplicate gene symbols
-
-df <- df[!duplicated(df$gene_symbol), ]
-
-# View cleaned data
-
-head(df)
-
-# Summary of logFC values
-
-summary(df$logFC)
-
-
-############################################################
-# STEP 4: CONVERT GENE SYMBOLS TO ENTREZ IDs
-############################################################
-
-# Convert gene symbols into Entrez Gene IDs
-
-gene_conversion <- bitr(
-  df$gene_symbol,
+# Convert gene symbols into Entrez IDs
+gene_ids <- bitr(
+  data$gene_symbol,
   fromType = "SYMBOL",
   toType = "ENTREZID",
   OrgDb = org.Hs.eg.db
 )
 
-# Merge converted IDs with original logFC values
-
-merged_data <- merge(
-  gene_conversion,
-  df,
-  by.x = "SYMBOL",
-  by.y = "gene_symbol"
+# Combine gene symbols, logFC values and Entrez IDs
+gene_data <- merge(
+  data,
+  gene_ids,
+  by.x = "gene_symbol",
+  by.y = "SYMBOL"
 )
 
 # Remove duplicate Entrez IDs
+gene_data <- gene_data[!duplicated(gene_data$ENTREZID), ]
 
-merged_data <- merged_data[
-  !duplicated(merged_data$ENTREZID),
-]
+# View converted gene IDs
+head(gene_data)
 
-# Display converted data
-
-head(merged_data)
-
-# Check number of successfully mapped genes
-
-nrow(merged_data)
+# Check dimensions of converted dataset
+dim(gene_data)
 
 
-############################################################
-# STEP 5: PREPARE INPUTS FOR ORA
-############################################################
+# STEP 4: GO CLASSIFICATION
 
-# Select genes with absolute logFC greater than 1.5
-
-ora_genes <- merged_data$ENTREZID[
-  abs(merged_data$logFC) > 1.5
-]
-
-# Define the background gene universe
-
-universe_genes <- merged_data$ENTREZID
-
-# Display number of selected genes
-
-length(ora_genes)
-
-# Display selected genes
-
-ora_genes
-
-
-############################################################
-# STEP 6: PREPARE INPUT FOR GSEA
-############################################################
-
-# Create a named numeric vector using logFC values
-
-geneList <- merged_data$logFC
-
-# Assign Entrez IDs as names
-
-names(geneList) <- merged_data$ENTREZID
-
-# Sort genes in decreasing order of logFC
-
-geneList <- sort(geneList, decreasing = TRUE)
-
-# View ranked gene list
-
-head(geneList)
-
-
-############################################################
-# STEP 7: KEGG ORA
-############################################################
-
-# Perform Over-Representation Analysis using KEGG
-
-kk <- enrichKEGG(
-  gene = ora_genes,
-  organism = "hsa",
-  keyType = "ncbi-geneid",
-  universe = universe_genes,
-  pvalueCutoff = 0.05
+# Perform GO classification using Biological Process
+go_classification <- groupGO(
+  gene = gene_data$ENTREZID,
+  OrgDb = org.Hs.eg.db,
+  ont = "BP",
+  level = 3,
+  readable = TRUE
 )
+
+# View GO classification results
+head(as.data.frame(go_classification))
 
 # Convert results into a data frame
+go_classification_df <- as.data.frame(go_classification)
 
-kk_df <- as.data.frame(kk)
+# Check dimensions of the results
+dim(go_classification_df)
 
-# Display results
+# Plot GO classification
+barplot(go_classification)
 
-head(kk_df)
+# Save the plot
+ggsave("GO_Classification.png", width = 10, height = 8)
 
-# Convert Entrez IDs into readable gene symbols
 
-kk_readable <- setReadable(
-  kk,
+
+# STEP 5: GO OVER-REPRESENTATION ANALYSIS (ORA)
+
+# Select genes with absolute logFC greater than or equal to 1
+selected_genes <- gene_data$ENTREZID[
+  abs(gene_data$logFC) >= 1
+]
+
+# View selected genes
+selected_genes
+
+# Perform GO enrichment analysis
+go_enrichment <- enrichGO(
+  gene = selected_genes,
   OrgDb = org.Hs.eg.db,
-  keyType = "ENTREZID"
+  keyType = "ENTREZID",
+  ont = "BP",
+  pAdjustMethod = "BH",
+  pvalueCutoff = 0.05,
+  qvalueCutoff = 0.2,
+  readable = TRUE
 )
 
-# Visualize KEGG ORA results
+# View GO enrichment results
+head(as.data.frame(go_enrichment))
 
-dotplot(kk, showCategory = 10) +
-  ggtitle("KEGG ORA - Dot Plot")
+# Convert results into a data frame
+go_enrichment_df <- as.data.frame(go_enrichment)
 
-barplot(kk, showCategory = 10) +
-  ggtitle("KEGG ORA - Bar Plot")
+# Check dimensions of the results
+dim(go_enrichment_df)
 
 
-############################################################
-# STEP 8: KEGG GSEA
-############################################################
+# BAR PLOT OF GO ENRICHMENT
 
-# Perform GSEA using KEGG
+# Plot GO enrichment results
+barplot(go_enrichment)
 
-kk2 <- gseKEGG(
-  geneList = geneList,
-  organism = "hsa",
-  keyType = "ncbi-geneid",
-  minGSSize = 10,
+# Save the plot
+ggsave("GO_ORA_Barplot.png", width = 10, height = 8)
+
+
+# DOT Plot GO enrichment results
+dotplot(go_enrichment) +
+  theme(axis.text.y = element_text(size = 8))
+
+# Save the plot
+ggsave("GO_ORA_Dotplot.png",
+       width = 12,
+       height = 12,
+       dpi = 300)
+
+#GSEA
+# Create a ranked gene list using logFC
+gene_list <- gene_data$logFC
+
+# Assign Entrez IDs as names
+names(gene_list) <- gene_data$ENTREZID
+
+# Sort genes in decreasing order
+gene_list <- sort(gene_list, decreasing = TRUE)
+
+# View the ranked gene list
+head(gene_list)
+# Perform GSEA for GO Biological Process
+go_gsea <- gseGO(
+  geneList = gene_list,
+  OrgDb = org.Hs.eg.db,
+  ont = "BP",
+  keyType = "ENTREZID",
+  pAdjustMethod = "BH",
   pvalueCutoff = 0.05,
   verbose = FALSE
 )
 
+# View GSEA results
+head(as.data.frame(go_gsea))
+
 # Convert results into a data frame
+go_gsea_df <- as.data.frame(go_gsea)
 
-kk2_df <- as.data.frame(kk2)
+# Check dimensions
+dim(go_gsea_df)
+# Plot GSEA results using dot plot
+dotplot(go_gsea)
 
-# Display results
+# Save the plot
+ggsave("GSEA_Dotplot.png",
+       width = 12,
+       height = 10,
+       dpi = 300)
 
-head(kk2_df)
 
-# Visualize KEGG GSEA results
+# Convert GSEA results into a data frame
+gsea_df <- as.data.frame(go_gsea)
 
-dotplot(kk2, showCategory = 10) +
-  ggtitle("KEGG GSEA - Dot
+# Select the top 10 pathways based on adjusted p-value
+top10_gsea <- head(gsea_df[order(gsea_df$p.adjust), ], 10)
+
+# Create a simple bar plot
+ggplot(top10_gsea, aes(x = reorder(Description, NES), y = NES)) +
+  geom_col(fill = "steelblue") +
+  coord_flip() +
+  labs(
+    title = "Top 10 GSEA Enriched Pathways",
+    x = "GO Terms",
+    y = "Normalized Enrichment Score (NES)"
+  ) +
+  theme_minimal()
+
+# Save the plot
+ggsave("GSEA_Barplot.png", width = 12, height = 8, dpi = 300)
+
+
+# Plot GSEA results using ridge plot
+ridgeplot(go_gsea, showCategory = 10)
+
+# Save the plot
+ggsave("GSEA_Ridgeplot.png",
+       width = 12,
+       height = 8,
+       dpi = 300)
+
+
+
+# STEP 7: KEGG PATHWAY ENRICHMENT
+
+# Perform KEGG enrichment analysis
+kegg_results <- enrichKEGG(
+  gene = selected_genes,
+  organism = "hsa",
+  pvalueCutoff = 0.05,
+  pAdjustMethod = "BH"
+)
+
+# View KEGG enrichment results
+head(as.data.frame(kegg_results))
+
+# Convert results into a data frame
+kegg_df <- as.data.frame(kegg_results)
+
+# Check dimensions
+dim(kegg_df)
+
+# Plot KEGG enrichment results
+barplot(kegg_results)
+
+# Save the plot
+ggsave("KEGG_Barplot.png", width = 12, height = 8, dpi = 300)
+# Plot KEGG enrichment results
+dotplot(kegg_results)
+
+# Save the plot
+ggsave("KEGG_Dotplot.png", width = 12, height = 8, dpi = 300)
+
+# Export KEGG enrichment results
+write.csv(kegg_df,
+          "KEGG_Results.csv",
+          row.names = FALSE)
+
+
+# STEP 8: REACTOME PATHWAY ENRICHMENT
+
+# Perform Reactome pathway enrichment
+reactome_results <- enrichPathway(
+  gene = selected_genes,
+  organism = "human",
+  pvalueCutoff = 0.05,
+  pAdjustMethod = "BH",
+  readable = TRUE
+)
+
+# View Reactome enrichment results
+head(as.data.frame(reactome_results))
+
+# Convert results into a data frame
+reactome_df <- as.data.frame(reactome_results)
+
+# Check dimensions
+dim(reactome_df)
+
+# Plot Reactome enrichment results
+dotplot(reactome_results) +
+  theme(axis.text.y = element_text(size = 9))
+
+# Save the plot
+ggsave("Reactome_Dotplot.png",
+       width = 14,
+       height = 10,
+       dpi = 300)
+
+# Plot Reactome enrichment results
+barplot(reactome_results)
+
+# Save the plot
+ggsave("Reactome_Barplot.png",
+       width = 12,
+       height = 8,
+       dpi = 300)
+# Export Reactome enrichment results
+write.csv(reactome_df,
+          "Reactome_Results.csv",
+          row.names = FALSE)
+
+# ============================================================
+# END OF CURRENT WORKFLOW
+# ============================================================
+```
