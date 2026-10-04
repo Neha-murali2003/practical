@@ -1,0 +1,54 @@
+# 1. Configure Git identity
+git config --global user.name "Neha-murali2003"
+git config --global user.email "nehamurali2003@gmail.com"
+
+# 2. Verify Git configuration
+git config --global --list
+
+# 3. Create a working directory
+mkdir -p ~/github_practical
+
+# 4. Navigate to the working directory
+cd ~/github_practical
+
+# 5. Clone the forked repository
+git clone https://github.com/Neha-murali2003/exam.git exam_fork
+
+# 6. Navigate into the cloned repository
+cd exam_fork
+
+# 7. List repository files
+ls
+
+# 8. Display hidden files
+ls -a
+
+# 9. Check remote repository connection
+git remote -v
+
+# 10. View the existing file
+cat "Student Names"
+
+# 11. Add name to the file
+echo "Neha Murali" >> "Student Names"
+
+# 12. Verify updated file contents
+cat "Student Names"
+
+# 13. Check repository status
+git status
+
+# 14. Stage the modified file
+git add "Student Names"
+
+# 15. Verify staged changes
+git status
+
+# 16. Commit changes
+git commit -m "Add my name to student list"
+
+# 17. Push changes to GitHub
+git push origin main
+
+# 18. Verify final repository status
+git status
