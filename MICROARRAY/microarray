@@ -1,74 +1,61 @@
-# MICROARRAY
-
 # ============================================================
 # EXPERIMENT 4: MICROARRAY DATA ANALYSIS USING LIMMA
 # ============================================================
 
 
-# PART A: INSTALLATION AND LOADING OF PACKAGES
+# ------------------------------------------------------------
+# PART A: LOADING AND READING TARGET FILES
+# ------------------------------------------------------------
 
-if (!requireNamespace("BiocManager", quietly = TRUE))
-    install.packages("BiocManager")
-
-if (!requireNamespace("limma", quietly = TRUE))
-    BiocManager::install("limma")
-
+# Load the limma package
 library(limma)
 
-
-# Set working directory
-getwd()
-
-# Read target file
+# Read the target file containing filenames and experimental groups
 targets <- readTargets("Targets.txt")
 
-# View target information
+# Display the target information
 targets
+
+# View the first few rows
 head(targets)
 
 
-# ============================================================
+# ------------------------------------------------------------
 # PART B: IMPORTING RAW MICROARRAY DATA
-# ============================================================
+# ------------------------------------------------------------
 
-# 1. Import using Agilent median signal
+# Read raw microarray data using Agilent median signal
 RG <- read.maimages(
     targets$FileName,
     source = "agilent"
 )
 
-# Inspect raw data
+# Display the dimensions of raw data
 dim(RG)
-str(RG)
+
+# View the first few rows of the gene annotation
+head(RG$genes)
+
+# Alternative: Read Agilent mean signal
+# y <- read.maimages(targets, source = "agilent.mean")
+
+# Alternative: Read specific columns for custom analysis
+# r_only <- read.maimages(
+#     targets,
+#     source = "agilent.mean",
+#     columns = list(
+#         E = "rMeanSignal",
+#         Eb = "rBGMedianSignal"
+#     )
+# )
 
 
-# 2. Import using Agilent mean signal
-y <- read.maimages(
-    targets,
-    source = "agilent.mean"
-)
-
-dim(y)
-
-
-# 3. Import selected columns for custom analysis
-r_only <- read.maimages(
-    targets,
-    source = "agilent.mean",
-    columns = list(
-        E = "rMeanSignal",
-        Eb = "rBGMedianSignal"
-    )
-)
-
-dim(r_only)
-
-
-# ============================================================
+# ------------------------------------------------------------
 # PART C: WITHIN-ARRAY NORMALIZATION AND QUALITY CONTROL
-# ============================================================
+# ------------------------------------------------------------
 
-# Background correction and LOESS normalization
+# Perform within-array LOESS normalization
+# Apply normexp background correction with an offset of 50
 MA <- normalizeWithinArrays(
     RG,
     method = "loess",
@@ -76,217 +63,284 @@ MA <- normalizeWithinArrays(
     offset = 50
 )
 
-# Inspect dimensions and summary statistics
+# Inspect dimensions of raw data
 dim(RG)
+
+# View summary statistics of red channel intensities
 summary(RG$R)
-summary(RG$G)
-dim(MA)
 
-
-# Generate MA plot for sample 2
+# Generate MA plot for the second array
 plotMD(
     RG,
     column = 2,
-    main = "MA Plot Before Normalization"
+    main = "MA Plot - Array 2"
 )
 
-# Generate MA plot using sample name
-# Run only if sample2 is the exact column name
-# plotMD(RG, column = which(colnames(RG) == "sample2"))
+# Generate MA plot for a specific sample named sample2
+# Run this only if sample2 is present in the column names
+# plotMD(
+#     RG,
+#     column = which(colnames(RG) == "sample2")
+# )
 
-
-# Visualize MA plots across arrays
+# Visualize MA plots across multiple arrays
 plotMA3by2(MA)
 
 
-# ============================================================
+# ------------------------------------------------------------
 # PART D: BETWEEN-ARRAY NORMALIZATION
-# ============================================================
+# ------------------------------------------------------------
 
-# Apply quantile normalization
+# Apply quantile normalization between arrays
 MA.q <- normalizeBetweenArrays(
     MA,
     method = "quantile"
 )
 
+# Display normalized data
+MA.q
 
-# ============================================================
-# DENSITY PLOT COMPARISON
-# BEFORE, WITHIN-ARRAY AND BETWEEN-ARRAY NORMALIZATION
-# ============================================================
-
-# Save all three plots in one image
-png(
-    "Density_Comparison.png",
-    width = 2400,
-    height = 900,
-    res = 150
-)
-
-# Arrange plots horizontally
-par(mfrow = c(1, 3), mar = c(5, 5, 5, 2))
-
-# Before normalization
+# Compare density plots before and after normalization
 plotDensities(
     RG,
     main = "Before Normalization"
 )
 
-# After within-array normalization
 plotDensities(
     MA,
     main = "After Within-array Normalization"
 )
 
-# After between-array normalization
 plotDensities(
     MA.q,
     main = "After Between-array Normalization"
 )
 
-# Close and save image
-dev.off()
 
-# Reset plotting layout
-par(mfrow = c(1, 1))
-
-
-# ============================================================
+# ------------------------------------------------------------
 # PART E: LINEAR MODELING AND EMPIRICAL BAYES ANALYSIS
-# ============================================================
+# ------------------------------------------------------------
 
-# Create design matrix
+# Create the design matrix using normal as the reference group
 design <- modelMatrix(
     targets,
     ref = "normal"
 )
 
-# View design matrix
+# Display the design matrix
 design
 
-
-# Fit linear model
+# Fit a linear model for each probe
 fit <- lmFit(
     MA.q,
     design
 )
 
-
 # Apply empirical Bayes moderation
 eb <- eBayes(fit)
 
-
-# Extract top differentially expressed probes
+# Extract the top table with Benjamini-Hochberg correction
 tb <- topTable(
     eb,
     adjust.method = "BH"
 )
 
-head(tb)
-
-
-# Extract complete differential expression table
+# Extract results for all probes
 tt <- topTable(
     eb,
     number = Inf,
     adjust.method = "BH"
 )
 
-# View results
+# Display the first few rows
 head(tt)
 
-# Check dimensions
+# Check the dimensions
 dim(tt)
 
+# Display column names
+colnames(tt)
 
-# ============================================================
+
+# ------------------------------------------------------------
 # PART F: FILTERING AND EXPORTING SIGNIFICANT PROBES
-# ============================================================
+# ------------------------------------------------------------
 
-# Filter based on p-value and log-fold change
-select <- rownames(tt)[
+# Filter probes based on:
+# P-value <= 0.05
+# Absolute log fold change >= 0.5
+
+significant <- tt[
     tt$P.Value <= 0.05 &
-    (tt$logFC >= 0.5 | tt$logFC <= -0.5)
+    abs(tt$logFC) >= 0.5,
 ]
 
-# Count selected probes
-length(select)
+# Display significant probes
+head(significant)
+
+# Count the significant probes
+nrow(significant)
 
 
-# Extract normalized expression values
-selectedProbes <- MA.q[select, ]
+# Extract the ProbeUID values of significant probes
+selected_ids <- significant$ProbeUID
+
+# Check the number of selected probes
+length(selected_ids)
 
 
-# Export selected probes
+# Match selected probe IDs with the annotation in MA.q
+probe_index <- match(
+    selected_ids,
+    MA.q$genes$ProbeUID
+)
+
+# Count successfully matched probes
+sum(!is.na(probe_index))
+
+
+# Extract normalized expression values of significant probes
+selectedProbes <- MA.q[probe_index, ]
+
+# Check the dimensions
+dim(selectedProbes)
+
+
+# Combine probe annotation and normalized expression values
+selected_data <- data.frame(
+    selectedProbes$genes,
+    selectedProbes$M,
+    check.names = FALSE
+)
+
+# Display the first few rows
+head(selected_data)
+
+# Export the filtered output as a tab-delimited text file
 write.table(
-    selectedProbes,
+    selected_data,
     "outputSelected.txt",
-    row.names = TRUE,
+    row.names = FALSE,
     col.names = TRUE,
     sep = "\t",
     quote = FALSE
 )
 
 
-# Export complete differential expression results
+# Export the complete differential expression results
 write.table(
     tt,
     "Differential_Expression_Results.txt",
-    row.names = TRUE,
+    row.names = FALSE,
+    col.names = TRUE,
+    sep = "\t",
+    quote = FALSE
+)
+
+# Export significant probes
+write.table(
+    significant,
+    "Significant_Probes.txt",
+    row.names = FALSE,
     col.names = TRUE,
     sep = "\t",
     quote = FALSE
 )
 
 
-# ============================================================
-# PART G: SAVE ANALYSIS OBJECTS
-# ============================================================
+# ------------------------------------------------------------
+# FINAL STEP: FOUR DENSITY PLOTS IN ONE FRAME
+# ------------------------------------------------------------
 
-save(
-    targets,
-    RG,
-    MA,
-    MA.q,
-    design,
-    fit,
-    eb,
-    tt,
-    selectedProbes,
-    file = "Microarray_Analysis.RData"
-)
-# ============================================================
-# COMBINED DENSITY PLOT
-# Before Normalization, After Within-array Normalization,
-# and After Between-array Normalization
-# ============================================================
-
-png("Combined_Density_Plot.png",
-    width = 2400, height = 900, res = 150)
-
-par(mfrow = c(1, 3),
-    mar = c(5, 5, 5, 2))
-
+# The four plots represent:
 # 1. Before normalization
-plotDensities(RG,
-              main = "Before Normalization",
-              legend = FALSE)
-
 # 2. After within-array normalization
-plotDensities(MA,
-              main = "After Within-array Normalization",
-              legend = FALSE)
-
 # 3. After between-array normalization
-plotDensities(MA.q,
-              main = "After Between-array Normalization",
-              legend = FALSE)
+# 4. After final filtering
 
+
+# Save the four plots as a high-resolution PNG image
+png(
+    "Four_Density_Plots_Comparison.png",
+    width = 3200,
+    height = 1600,
+    res = 200
+)
+
+# Set plotting layout for four plots in one row
+par(
+    mfrow = c(1, 4),
+    mar = c(5, 3.5, 3.5, 1),
+    oma = c(0, 0, 4, 0)
+)
+
+
+# Plot 1: Before normalization
+plotDensities(
+    RG,
+    main = "Before\nNormalization",
+    legend = FALSE,
+    cex.main = 0.9
+)
+
+
+# Plot 2: After within-array normalization
+plotDensities(
+    MA,
+    main = "After Within-array\nNormalization",
+    legend = FALSE,
+    cex.main = 0.9
+)
+
+
+# Plot 3: After between-array normalization
+plotDensities(
+    MA.q,
+    main = "After Between-array\nNormalization",
+    legend = FALSE,
+    cex.main = 0.9
+)
+
+
+# Plot 4: After final filtering
+plotDensities(
+    selectedProbes,
+    main = "After Final\nFiltering",
+    legend = FALSE,
+    cex.main = 0.9
+)
+
+
+# Add the overall title with proper spacing
+mtext(
+    "Density Plots of Microarray Data",
+    side = 3,
+    outer = TRUE,
+    line = 1.5,
+    font = 2,
+    cex = 1.4
+)
+
+
+# Close the graphics device and save the figure
 dev.off()
 
-# Reset plotting layout
+# Reset the plotting layout
 par(mfrow = c(1, 1))
 
-# ============================================================
-# END OF EXPERIMENT
-# ============================================================
+
+# ------------------------------------------------------------
+# VERIFY OUTPUT FILES
+# ------------------------------------------------------------
+
+# Check whether the output files were created successfully
+file.exists("outputSelected.txt")
+
+file.exists("Differential_Expression_Results.txt")
+
+file.exists("Significant_Probes.txt")
+
+file.exists("Four_Density_Plots_Comparison.png")
+
+# Display all files in the working directory
+list.files()
