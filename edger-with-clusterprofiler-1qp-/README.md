@@ -283,6 +283,11 @@ if (nrow(top5) > 0) {
     height = 6,
     dpi = 300
   )
+  } else {
+    
+   cat("No significant pathways found.")
+    
+ }
 
 } else {
 
