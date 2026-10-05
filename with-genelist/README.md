@@ -96,12 +96,61 @@ go_classification_df <- as.data.frame(go_classification)
 # Check dimensions of the results
 dim(go_classification_df)
 
-# Plot GO classification
+#### BarPlot GO classification
 barplot(go_classification)
 
 # Save the plot
 ggsave("GO_Classification.png", width = 10, height = 8)
 
+
+#####3plots in one frame (if only reqiured)
+# Convert all three GO classification results into data frames
+
+bp_df <- as.data.frame(go_bp)
+cc_df <- as.data.frame(go_cc)
+mf_df <- as.data.frame(go_mf)
+
+# Add ontology labels
+bp_df$ONTOLOGY <- "BP"
+cc_df$ONTOLOGY <- "CC"
+mf_df$ONTOLOGY <- "MF"
+
+# Combine all three data frames
+go_combined <- rbind(bp_df, cc_df, mf_df)
+
+# Select the top 8 classifications from each ontology
+go_top <- do.call(
+    rbind,
+    lapply(
+        split(go_combined, go_combined$ONTOLOGY),
+        function(x) head(x[order(-x$Count), ], 8)
+    )
+)
+
+# Plot the combined GO classification results
+ggplot(
+    go_top,
+    aes(x = reorder(Description, Count), y = Count, fill = ONTOLOGY)
+) +
+    geom_col() +
+    coord_flip() +
+    facet_grid(ONTOLOGY ~ ., scales = "free_y", space = "free_y") +
+    labs(
+        title = "Top GO Classifications Across Ontologies",
+        x = NULL,
+        y = "Gene Count",
+        fill = "ONTOLOGY"
+    ) +
+    theme_minimal() +
+    theme(
+        plot.title = element_text(hjust = 0.5, face = "bold"),
+        strip.text = element_text(face = "bold"),
+        axis.text.y = element_text(size = 8)
+    )
+
+
+
+#####CC ALONE AS IN GRAPH PLOT
 # Load ggplot2
 library(ggplot2)
 # BP,CC,MF IN A PLOT FOR GO
@@ -123,24 +172,7 @@ ggplot(cc_df, aes(x = reorder(Description, Count), y = Count)) +
     )
 
 
-#CC ALONE BAR GRAPH IN RECORD
 
-# Convert GO classification results into a data frame
-cc_df <- as.data.frame(go_cc)
-
-# Plot Cellular Component classification
-ggplot(cc_df, aes(x = reorder(Description, Count), y = Count)) +
-    geom_col(fill = "steelblue") +
-    coord_flip() +
-    labs(
-        title = "GO Classification (Cellular Component)",
-        x = NULL,
-        y = "Count"
-    ) +
-    theme_minimal() +
-    theme(
-        plot.title = element_text(hjust = 0.5, face = "bold")
-    )
 
 
 # STEP 5: GO OVER-REPRESENTATION ANALYSIS (ORA)
