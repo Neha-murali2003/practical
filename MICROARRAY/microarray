@@ -246,7 +246,64 @@ write.table(
     sep = "\t",
     quote = FALSE
 )
+# ============================================================
+# THREE DENSITY PLOTS IN ONE FRAME
+# ============================================================
 
+# Save the figure as a high-resolution PNG
+png(
+    "Three_Density_Plots_Comparison.png",
+    width = 2400,
+    height = 1200,
+    res = 200
+)
+
+# Set plotting layout for three plots in one row
+par(
+    mfrow = c(1, 3),
+    mar = c(5, 4, 4, 1),
+    oma = c(0, 0, 4, 0)
+)
+
+# Plot 1: Before normalization
+plotDensities(
+    RG,
+    main = "Before Normalization",
+    legend = FALSE,
+    cex.main = 1
+)
+
+# Plot 2: After within-array normalization
+plotDensities(
+    MA,
+    main = "After Within-array\nNormalization",
+    legend = FALSE,
+    cex.main = 1
+)
+
+# Plot 3: After between-array normalization
+plotDensities(
+    MA.q,
+    main = "After Between-array\nNormalization",
+    legend = FALSE,
+    cex.main = 1
+)
+
+# Add overall title
+mtext(
+    "Density Plots of Microarray Data",
+    side = 3,
+    outer = TRUE,
+    line = 1.5,
+    font = 2,
+    cex = 1.5
+)
+
+# Close the graphics device and save the image
+dev.off()
+
+# Reset plotting layout
+par(mfrow = c(1, 1))
 
 # ------------------------------------------------------------
 # FINAL STEP: FOUR DENSITY PLOTS IN ONE FRAME
