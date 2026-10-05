@@ -1,0 +1,87 @@
+Part A — Loading and Reading Target Files
+Before reading the raw files, the metadata describing the microarray experiment is loaded using read.maimages(). The target file specifies the filenames and the respective dye-swap or experimental conditions (e.g., normal vs. tumor).
+
+R
+library(limma)
+ 
+# Reading target file containing filenames and experimental groups
+targets <- readTargets("Targets.txt")
+ 
+Part B — Importing Raw Microarray Data
+The read.maimages() function reads raw intensity data from image analysis output files (such as Agilent feature extraction files). Different source options can be specified depending on whether median or mean signals are required:
+
+R
+# Read the data using Agilent median signal
+RG <- read.maimages(targets$FileName, source = "agilent")
+ 
+# Read the data using Agilent mean signal
+y <- read.maimages(targets, source = "agilent.mean")
+ 
+# Read specific columns for custom analysis
+r_only <- read.maimages(targets, source = "agilent.mean",
+                        columns = list(E = "rMeanSignal", Eb = "rBGMedianSignal"))
+ 
+Part C — Within-Array Normalization and Quality Control
+Raw microarray data often contain intensity-dependent and spatial artifacts. Within-array normalization (such as loess normalization) corrects for these biases within each individual array.
+
+
+R
+# Perform within-array normalization with background correction (normexp) and an offset
+MA <- normalizeWithinArrays(RG, method = "loess", bc.method = "normexp", offset = 50)
+ 
+# Inspect dimensions and summary statistics
+dim(RG)
+summary(RG$R)
+ 
+# Generate MA plots for a specific sample (e.g., sample2)
+plotMD(RG, column = 2)
+plotMD(RG, column = which(colnames(RG) == "sample2"))
+ 
+# Visualize MA plots across multiple arrays
+plotMA3by2(MA)
+ 
+Part D — Between-Array Normalization (Quantile Normalization)
+To ensure that expression intensities have similar distributions across all arrays, between-array quantile normalization is applied.
+
+R
+# Apply quantile normalization between arrays
+MA.q <- normalizeBetweenArrays(MA, method = "quantile")
+ 
+# Compare density plots before and after normalization
+plotDensities(RG)
+plotDensities(MA)
+ 
+Part E — Linear Modeling and Empirical Bayes Analysis
+Differential expression analysis is performed by fitting a linear model to each probe across the arrays, followed by empirical Bayes moderation to borrow information across genes.
+
+
+R
+# Create the design matrix based on experimental conditions (reference group: normal)
+design <- modelMatrix(targets, ref = "normal")
+ 
+# Fit linear model for each probe
+fit <- lmFit(MA.q, design)
+ 
+# Apply empirical Bayes shrinkage
+eb <- eBayes(fit)
+ 
+# Extract top table of differentially expressed genes using Benjamini-Hochberg (BH) correction
+tb <- topTable(eb, adjust.method = "BH")
+tt <- topTable(eb, n = nrow(MA.q))
+ 
+Part F — Filtering and Exporting Significant Probes
+Significant probes are filtered based on statistical significance ( ) and log-fold change thresholds (logFC  or  ), and the corresponding expression values are exported for downstream clustering or functional analysis.
+
+
+R
+# Filter probes based on p-value and log-fold change thresholds
+select <- rownames(tt)[ttP.Value<=0.05&(ttlogFC >= 0.5 | tt$logFC <= -0.5)]
+ 
+# Convert character row names to numeric indices
+select <- as.numeric(select)
+ 
+# Extract original expression values of significant probes
+selectedProbes <- MA.q[select, ]
+ 
+# Write the filtered output to a tab-delimited text file
+write.table(selectedProbes, "outputSelected.txt", row.names = TRUE, col.names = TRUE, sep = "\t")
